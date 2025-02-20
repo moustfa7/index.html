@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sakr Travel</title>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+
+    <!-- QR Code Reader Library -->
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/html5-qrcode.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #eefbff;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: auto;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .check-in {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .clear {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .history {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            max-width: 400px;
+            margin: 10% auto;
+        }
+
+        #scanner-container {
+            width: 250px;
+            height: 250px;
+            border: 2px dashed green;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Sakr Travel</h2>
+
+    <button class="check-in" onclick="startScan()">Check In</button>
+    <button class="clear" onclick="clearList()">Clear</button>
+    <button class="history" onclick="openHistory()">History</button>
+
+    <table id="studentsTable">
+        <thead>
+            <tr>
+                <th>اسم الطالب</th>
+                <th>وقت الدخول</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<!-- Scanner Modal -->
+<div id="scannerModal" class="modal">
+    <div class="modal-content">
+        <h2>مسح QR Code</h2>
+        <div id="scanner-container"></div>
+        <button onclick="stopScanner()">إغلاق</button>
+    </div>
+</div>
+
+<!-- History Modal -->
+<div id="historyModal" class="modal">
+    <div class="modal-content">
+        <h2>تاريخ الحضور</h2>
+        <button onclick="closeHistory()">إغلاق</button>
+        <div id="historyContent"></div>
+    </div>
+</div>
+
+<script>
+    // Firebase Configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyDW1jpcRrlzalAPqtT5dg-rjl8RAJ91M8A",
+        authDomain: "moustfa-b1edc.firebaseapp.com",
+        databaseURL: "https://moustfa-b1edc-default-rtdb.firebaseio.com/",
+        projectId: "moustfa-b1edc",
+        storageBucket: "moustfa-b1edc.appspot.com",
+        messagingSenderId: "808531730813",
+        appId: "1:808531730813:web:9281183cf0ba80df106c14"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    let scanner;
+
+    function startScan() {
+        document.getElementById("scannerModal").style.display = "block";
+
+        scanner = new Html5QrcodeScanner("scanner-container", {
+            fps: 10,
+            qrbox: { width: 250, height: 250 }
+        });
+
+        scanner.render(result => {
+            handleCheckIn(result);
+            stopScanner();
+        });
+    }
+
+    function stopScanner() {
+        if (scanner) {
+            scanner.clear();
+            scanner = null;
+        }
+        document.getElementById("scannerModal").style.display = "none";
+    }
+
+    function handleCheckIn(qrData) {
+        const studentName = qrData.trim();
+        if (!studentName) return;
+
+        const now = new Date().toLocaleString();
+
+        database.ref("students/" + studentName).once("value", snapshot => {
+            if (snapshot.exists()) {
+                alert("تم تسجيل هذا الطالب من قبل!");
+                document.body.style.backgroundColor = "red";
+                navigator.vibrate(500);
+            } else {
+                database.ref("students/" + studentName).set({
+                    name: studentName,
+                    checkIn: now
+                });
+
+                alert("تم تسجيل الدخول بنجاح!");
+                document.body.style.backgroundColor = "green";
+                new Audio('success.mp3').play();
+            }
+        });
+
+        loadStudents();
+    }
+
+    function loadStudents() {
+        const tableBody = document.querySelector("#studentsTable tbody");
+        database.ref("students").on("value", snapshot => {
+            tableBody.innerHTML = "";
+            snapshot.forEach(childSnapshot => {
+                const student = childSnapshot.val();
+                const row = `
+                    <tr>
+                        <td>${student.name}</td>
+                        <td>${student.checkIn}</td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+        });
+    }
+
+    function clearList() {
+        database.ref("students").remove();
+        loadStudents();
+    }
+
+    function openHistory() {
+        document.getElementById("historyModal").style.display = "block";
+    }
+
+    function closeHistory() {
+        document.getElementById("historyModal").style.display = "none";
+    }
+
+    loadStudents();
+</script>
+
+</body>
+</html>
