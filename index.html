@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sakr Travel</title>
+    <style>
+        /* General Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #eefbff;
+            margin: 0;
+            padding: 20px;
+            direction: rtl;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            text-align: center;
+        }
+
+        button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        button.check-in {
+            background-color: #28a745;
+            color: white;
+        }
+
+        button.check-out {
+            background-color: #007bff;
+            color: white;
+        }
+
+        button.clear {
+            background-color: #dc3545;
+            color: white;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 60px;
+            height: 60px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button.history {
+            background-color: #ffc107;
+            color: black;
+            position: absolute;
+            top: 85px;
+            left: 10px;
+            width: 60px;
+            height: 60px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .button-row {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        .modal-content {
+            background: white;
+            width: 80%;
+            max-width: 600px;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        video {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            border: 2px dashed green;
+            border-radius: 10px;
+            width: 250px; /* Adjusted size for better scanning */
+            height: 250px; /* Adjusted size for better scanning */
+        }
+
+        .scanner-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .check-out-icon {
+            color: green;
+            font-size: 20px;
+        }
+    </style>
+    <!-- HTML5 Qrcode Library -->
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <!-- Logo Sakr Travel -->
+    <div class="logo">Sakr Travel</div>
+    
+    <!-- History and Clear buttons on the top left -->
+    <button class="clear" onclick="clearList()">Clear</button>
+    <button class="history" onclick="openHistory()">History</button>
+
+    <!-- Row for Check In and Check Out buttons -->
+    <div class="button-row">
+        <button class="check-in" onclick="startScan('checkIn')">Check In</button>
+        <button class="check-out" onclick="startScan('checkOut')">Check Out</button>
+    </div>
+
+    <!-- Students Table -->
+    <table id="studentsTable">
+        <thead>
+            <tr>
+                <th>اسم الطالب</th>
+                <th>وقت الدخول</th>
+                <th>حالة الخروج</th>
+                <th>ملاحظات</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</div>
+
+<!-- History Modal -->
+<div id="historyModal" class="modal">
+    <div class="modal-content">
+        <h2>تاريخ القوائم المحفوظة</h2>
+        <button onclick="closeHistory()">إغلاق</button>
+        <div id="historyContent"></div>
+    </div>
+</div>
+
+<!-- QR Scanner Modal -->
+<div id="scannerModal" class="modal">
+    <div class="modal-content">
+        <h2>مسح QR Code</h2>
+        <div id="scannerPreview" class="scanner-container"></div>
+        <button onclick="stopScanner()">إغلاق</button>
+    </div>
+</div>
+
+<script>
+    let students = [];
+    let history = [];
+    let qrScanner;
+
+    // Start QR Code Scanner
+    function startScan(mode) {
+        const scannerModal = document.getElementById("scannerModal");
+        scannerModal.style.display = "block";
+
+        const scannerContainer = document.getElementById("scannerPreview");
+
+        // Remove previous elements
+        while (scannerContainer.firstChild) {
+            scannerContainer.removeChild(scannerContainer.firstChild);
+        }
+
+        // Initialize QR Code Scanner
+        try {
+            qrScanner = new Html5QrcodeScanner("scannerPreview", {
+                fps: 10,
+                qrbox: { width: 250, height: 250 } // Adjusted size for better scanning
+            });
+
+            // Start scanning
+            qrScanner.render(result => {
+                if (mode === "checkIn") {
+                    handleCheckIn(result);
+                } else if (mode === "checkOut") {
+                    handleCheckOut(result);
+                }
+                stopScanner(); // Stop scanner after reading QR code
+            });
+        } catch (error) {
+            alert("حدث خطأ أثناء تهيئة الكاميرا.");
+            console.error("QR Scanner initialization error:", error);
+        }
+    }
+
+    // Stop QR Code Scanner
+    function stopScanner() {
+        if (qrScanner) {
+            qrScanner.clear();
+            qrScanner = null;
+        }
+        const scannerModal = document.getElementById("scannerModal");
+        scannerModal.style.display = "none";
+    }
+
+    // Handle Check In
+    function handleCheckIn(qrData) {
+        const now = new Date();
+        const formattedTime = now.toLocaleString();
+
+        const studentName = qrData.trim(); // Trim any extra spaces
+
+        if (!studentName) {
+            alert("QR Code غير صالح.");
+            return;
+        }
+
+        const existingStudent = students.find(student => student.name === studentName);
+
+        if (existingStudent && !existingStudent.checkOut) {
+            alert(`الطالب "${studentName}" مسجل بالفعل.`);
+            return;
+        }
+
+        const student = { name: studentName, checkIn: formattedTime, checkOut: "", notes: "" };
+        students.push(student);
+        updateTable();
+    }
+
+    // Handle Check Out
+    function handleCheckOut(qrData) {
+        const studentName = qrData.trim(); // Trim any extra spaces
+
+        if (!studentName) {
+            alert("QR Code غير صالح.");
+            return;
+        }
+
+        const student = students.find(s => s.name === studentName && !s.checkOut);
+
+        if (!student) {
+            alert(`لم يتم العثور على الطالب "${studentName}" أو أنه سجل خروجه بالفعل.`);
+            return;
+        }
+
+        const now = new Date();
+        student.checkOut = "<span class='check-out-icon'>✅</span>";
+        updateTable();
+    }
+
+    // Update table with students data
+    function updateTable() {
+        const tableBody = document.querySelector("#studentsTable tbody");
+        tableBody.innerHTML = "";
+        students.forEach((student, index) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${student.name}</td>
+                <td>${student.checkIn || "-"}</td>
+                <td>${student.checkOut || "-"}</td>
+                <td><input type="text" value="${student.notes}" onchange="updateNotes(${index}, this.value)" /></td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    // Clear list and save to history
+    function clearList() {
+        if (students.length > 0) {
+            const currentDate = new Date().toLocaleDateString();
+            history.push({ date: currentDate, list: [...students] });
+            students = [];
+            updateTable();
+        } else {
+            alert("لا توجد قائمة للمسح.");
+        }
+    }
+
+    // Open history modal
+    function openHistory() {
+        const historyContentDiv = document.getElementById("historyContent");
+        historyContentDiv.innerHTML = "";
+
+        if (history.length === 0) {
+            historyContentDiv.innerHTML = "<p>لا يوجد تاريخ محفوظ.</p>";
+        } else {
+            history.forEach((day, index) => {
+                const dayDiv = document.createElement("div");
+                dayDiv.style.marginBottom = "20px";
+                dayDiv.innerHTML = `
+                    <h3>التاريخ: ${day.date}</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>اسم الطالب</th>
+                                <th>وقت الدخول</th>
+                                <th>حالة الخروج</th>
+                                <th>ملاحظات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${day.list.map(stud => `
+                                <tr>
+                                    <td>${stud.name}</td>
+                                    <td>${stud.checkIn || "-"}</td>
+                                    <td>${stud.checkOut || "-"}</td>
+                                    <td>${stud.notes || "-"}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                `;
+                historyContentDiv.appendChild(dayDiv);
+            });
+        }
+
+        document.getElementById("historyModal").style.display = "block";
+    }
+
+    // Close history modal
+    function closeHistory() {
+        document.getElementById("historyModal").style.display = "none";
+    }
+
+    // Update notes
+    function updateNotes(index, value) {
+        students[index].notes = value;
+    }
+</script>
+
+</body>
+</html>
