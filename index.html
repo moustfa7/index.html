@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sakr Travel</title>
+    <style>
+        /* General Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #eefbff;
+            margin: 0;
+            padding: 20px;
+            direction: rtl;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            text-align: center;
+        }
+
+        /* Logo Styling */
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #0056b3; /* Sakr Travel blue color */
+            margin-bottom: 20px;
+        }
+
+        /* Button Styling */
+        button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        button.check-in {
+            background-color: #28a745;
+            color: white;
+        }
+
+        button.check-out {
+            background-color: #007bff;
+            color: white;
+        }
+
+        button.clear {
+            background-color: #dc3545;
+            color: white;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 60px;
+            height: 60px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button.history {
+            background-color: #ffc107;
+            color: black;
+            position: absolute;
+            top: 85px;
+            left: 10px;
+            width: 60px;
+            height: 60px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        /* Button Row Styling */
+        .button-row {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        /* Table Styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        /* Modal Styling */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        .modal-content {
+            background: white;
+            width: 80%;
+            max-width: 600px;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Input Field Styling */
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        /* Return Time Input Styling */
+        input.return-time {
+            width: 60px; /* Fixed width for return time */
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        /* Check Out Icon Styling */
+        .check-out-icon {
+            color: green;
+            font-size: 20px;
+        }
+    </style>
+    <!-- Firebase Libraries -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <!-- Logo Sakr Travel -->
+    <div class="logo">Sakr Travel</div>
+    
+    <!-- History and Clear buttons on the top left -->
+    <button class="clear" onclick="clearList()">Clear</button>
+    <button class="history" onclick="openHistory()">History</button>
+
+    <!-- Row for Check In and Check Out buttons -->
+    <div class="button-row">
+        <button class="check-in" onclick="openQRScanner('checkIn')">Check In</button>
+        <button class="check-out" onclick="openQRScanner('checkOut')">Check Out</button>
+    </div>
+
+    <!-- Students Table -->
+    <table id="studentsTable">
+        <thead>
+            <tr>
+                <th>اسم الطالب</th>
+                <th>وقت الدخول</th>
+                <th>حالة الخروج</th>
+                <th>العودة</th> <!-- Changed from "ملاحظات" to "العودة" -->
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</div>
+
+<!-- QR Scanner Modal -->
+<div id="scannerModal" class="modal">
+    <div class="modal-content">
+        <h2>ادخل نتيجة QR Code</h2>
+        <input type="text" id="qrInput" placeholder="مسح QR Code هنا..." />
+        <button onclick="submitQRCode()">إرسال</button>
+        <button onclick="closeScannerModal()">إغلاق</button>
+    </div>
+</div>
+
+<script>
+    let students = [];
+    let history = [];
+
+    // Firebase Configuration
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    // Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Load students from Firebase
+    function loadStudents() {
+        db.collection("students").get().then(querySnapshot => {
+            students = [];
+            querySnapshot.forEach(doc => {
+                const data = doc.data();
+                students.push({
+                    id: doc.id,
+                    name: data.name,
+                    checkIn: data.checkIn || "-",
+                    checkOut: data.checkOut || "-",
+                    returnTime: data.returnTime || "" // Added returnTime field
+                });
+            });
+            updateTable(); // Update table after loading data
+        }).catch(error => {
+            console.error("Error loading students:", error);
+        });
+    }
+
+    // Open QR Scanner Modal
+    function openQRScanner(mode) {
+        document.getElementById("scannerModal").style.display = "block";
+        document.getElementById("qrInput").value = ""; // Clear input field
+        document.querySelector("#scannerModal .modal-content button:first-child").onclick = () => submitQRCode(mode); // Set mode dynamically
+    }
+
+    // Close QR Scanner Modal
+    function closeScannerModal() {
+        document.getElementById("scannerModal").style.display = "none";
+    }
+
+    // Submit QR Code Manually
+    function submitQRCode(mode) {
+        const qrData = document.getElementById("qrInput").value.trim();
+
+        if (!qrData) {
+            alert("يرجى إدخال نتيجة QR Code.");
+            return;
+        }
+
+        if (mode === "checkIn") {
+            handleCheckIn(qrData);
+        } else if (mode === "checkOut") {
+            handleCheckOut(qrData);
+        }
+
+        closeScannerModal(); // Close modal after submission
+    }
+
+    // Handle Check In with Firebase
+    function handleCheckIn(qrData) {
+        const now = new Date();
+        const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); // Show only time
+
+        const studentName = qrData;
+
+        if (!studentName) {
+            alert("QR Code غير صالح.");
+            return;
+        }
+
+        // Check if student is already checked in
+        db.collection("students").where("name", "==", studentName).where("checkOut", "==", "").get().then(querySnapshot => {
+            if (!querySnapshot.empty) {
+                alert(`الطالب "${studentName}" مسجل بالفعل.`);
+                return;
+            }
+
+            // Add student to Firebase
+            db.collection("students").add({
+                name: studentName,
+                checkIn: formattedTime,
+                checkOut: "",
+                returnTime: "" // Added returnTime field
+            }).then(() => {
+                alert(`تم تسجيل دخول الطالب "${studentName}" بنجاح.`);
+                loadStudents(); // Reload data after adding
+            }).catch(error => {
+                console.error("Error adding student:", error);
+                alert("حدث خطأ أثناء تسجيل الدخول.");
+            });
+        }).catch(error => {
+            console.error("Error checking student:", error);
+            alert("حدث خطأ أثناء التحقق من الطالب.");
+        });
+    }
+
+    // Handle Check Out with Firebase
+    function handleCheckOut(qrData) {
+        const studentName = qrData;
+
+        if (!studentName) {
+            alert("QR Code غير صالح.");
+            return;
+        }
+
+        // Find student in Firebase
+        db.collection("students").where("name", "==", studentName).where("checkOut", "==", "").get().then(querySnapshot => {
+            if (querySnapshot.empty) {
+                alert(`لم يتم العثور على الطالب "${studentName}" أو أنه سجل خروجه بالفعل.`);
+                return;
+            }
+
+            querySnapshot.forEach(doc => {
+                // Update checkOut status
+                doc.ref.update({ checkOut: "<span class='check-out-icon'>✅</span>" });
+            });
+
+            alert(`تم تسجيل خروج الطالب "${studentName}" بنجاح.`);
+            loadStudents(); // Reload data after updating
+        }).catch(error => {
+            console.error("Error checking out student:", error);
+            alert("حدث خطأ أثناء تسجيل الخروج.");
+        });
+    }
+
+    // Update table with students data
+    function updateTable() {
+        const tableBody = document.querySelector("#studentsTable tbody");
+        tableBody.innerHTML = "";
+        students.forEach((student, index) => {
+            const row = document.createElement("tr");
+
+            // Add class for highlighting rows
+            if (student.checkOut) {
+                row.classList.add("row-checked-out"); // Gray for checked-out students
+            }
+
+            row.innerHTML = `
+                <td>${student.name}</td>
+                <td>${student.checkIn || "-"}</td>
+                <td>${student.checkOut || "-"}</td>
+                <td><input class="return-time" type="text" value="${student.returnTime}" onchange="updateReturnTime(${index}, this.value)" /></td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    // Update return time in Firebase
+    function updateReturnTime(index, value) {
+        if (value.length > 5) {
+            alert("يجب أن يكون وقت العودة على شكل 12:30 فقط.");
+            return;
+        }
+
+        const studentId = students[index].id;
+        db.collection("students").doc(studentId).update({ returnTime: value });
+    }
+
+    // Clear list and save to history with Firebase
+    function clearList() {
+        if (students.length > 0) {
+            const currentDate = new Date().toLocaleDateString();
+            history.push({ date: currentDate, list: [...students] });
+
+            // Delete all students from Firebase
+            db.collection("students").get().then(querySnapshot => {
+                querySnapshot.forEach(doc => doc.ref.delete());
+                students = [];
+                updateTable();
+            });
+        } else {
+            alert("لا توجد قائمة للمسح.");
+        }
+    }
+
+    // Open history modal with Firebase
+    function openHistory() {
+        const historyContentDiv = document.getElementById("historyContent");
+        historyContentDiv.innerHTML = "";
+
+        if (history.length === 0) {
+            historyContentDiv.innerHTML = "<p>لا يوجد تاريخ محفوظ.</p>";
+        } else {
+            history.forEach((day, index) => {
+                const dayDiv = document.createElement("div");
+                dayDiv.style.marginBottom = "20px";
+                dayDiv.innerHTML = `
+                    <h3>التاريخ: ${day.date}</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>اسم الطالب</th>
+                                <th>وقت الدخول</th>
+                                <th>حالة الخروج</th>
+                                <th>العودة</th> <!-- Changed from "ملاحظات" to "العودة" -->
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${day.list.map(stud => `
+                                <tr>
+                                    <td>${stud.name}</td>
+                                    <td>${stud.checkIn || "-"}</td>
+                                    <td>${stud.checkOut || "-"}</td>
+                                    <td>${stud.returnTime || "-"}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                `;
+                historyContentDiv.appendChild(dayDiv);
+            });
+        }
+
+        document.getElementById("historyModal").style.display = "block";
+    }
+
+    // Close history modal
+    function closeHistory() {
+        document.getElementById("historyModal").style.display = "none";
+    }
+
+    // Ensure page refreshes automatically when data changes
+    db.collection("students").onSnapshot(snapshot => {
+        loadStudents(); // Reload data whenever there's a change in Firestore
+    });
+
+    // Load students when page loads
+    window.onload = loadStudents;
+</script>
+
+</body>
+</html>
