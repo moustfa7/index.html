@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sakr Travel</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+    <style>
+        /* General Styles */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #eefbff;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: auto;
+        }
+
+        /* Logo Styling */
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #0056b3; /* Sakr Travel blue color */
+            margin-bottom: 20px;
+        }
+
+        /* Button Styling */
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        button.check-in {
+            background-color: #28a745;
+            color: white;
+        }
+
+        button.check-out {
+            background-color: #007bff;
+            color: white;
+        }
+
+        button.clear {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        button.history {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        /* Table Styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        /* Modal Styling */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            max-width: 400px;
+            margin: 10% auto;
+        }
+
+        /* Camera Video Styling */
+        video {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            border: 2px dashed green;
+            border-radius: 10px;
+            width: 200px; /* Adjusted size for camera */
+            height: 200px;
+        }
+
+        /* Input Field Styling */
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Logo Sakr Travel -->
+    <div class="logo">Sakr Travel</div>
+    
+    <!-- Buttons -->
+    <button class="clear" onclick="clearList()">Clear</button>
+    <button class="history" onclick="openHistory()">History</button>
+    <button class="check-in" onclick="openCameraModal('checkIn')">Check In</button>
+    <button class="check-out" onclick="openCameraModal('checkOut')">Check Out</button>
+
+    <!-- Students Table -->
+    <table id="studentsTable">
+        <thead>
+            <tr>
+                <th>اسم الطالب</th>
+                <th>وقت الدخول</th>
+                <th>حالة الخروج</th>
+                <th>العودة</th> <!-- Changed from "ملاحظات" to "العودة" -->
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<!-- Camera Modal -->
+<div id="cameraModal" class="modal">
+    <div class="modal-content">
+        <h2>مسح QR Code</h2>
+        <video id="cameraView" autoplay muted playsinline></video>
+        <input type="text" id="qrInput" placeholder="ادخل نتيجة QR Code هنا..." />
+        <button onclick="submitQRCode()">إرسال</button>
+        <button onclick="closeCameraModal()">إغلاق</button>
+    </div>
+</div>
+
+<!-- History Modal -->
+<div id="historyModal" class="modal">
+    <div class="modal-content">
+        <h2>تاريخ القوائم المحفوظة</h2>
+        <button onclick="closeHistory()">إغلاق</button>
+        <div id="historyContent"></div>
+    </div>
+</div>
+
+<script>
+    // Initialize Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyDW1jpcRrlzalAPqtT5dg-rjl8RAJ91M8A",
+        authDomain: "moustfa-b1edc.firebaseapp.com",
+        databaseURL: "https://moustfa-b1edc-default-rtdb.firebaseio.com", // Corrected URL
+        projectId: "moustfa-b1edc",
+        storageBucket: "moustfa-b1edc.appspot.com",
+        messagingSenderId: "808531730813",
+        appId: "1:808531730813:web:9281183cf0ba80df106c14",
+        measurementId: "G-MPDLTJJKJX"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    let students = [];
+    let history = [];
+    let cameraStream;
+
+    // Load students from Firebase
+    function loadStudents() {
+        database.ref("students").on("value", snapshot => {
+            students = [];
+            snapshot.forEach(childSnapshot => {
+                const student = childSnapshot.val();
+                students.push({
+                    id: childSnapshot.key,
+                    name: student.name,
+                    checkIn: student.checkIn || "-",
+                    checkOut: student.checkOut || "-",
+                    returnTime: student.returnTime || "-" // Added returnTime field
+                });
+            });
+            updateTable(); // Update table after loading data
+        });
+    }
+
+    // Open Camera Modal
+    function openCameraModal(mode) {
+        const cameraModal = document.getElementById("cameraModal");
+        cameraModal.style.display = "block";
+
+        const videoElement = document.getElementById("cameraView");
+
+        // Access camera
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: 200, height: 200 } }) // Adjusted size for camera
+            .then(stream => {
+                cameraStream = stream;
+                videoElement.srcObject = stream;
+            })
+            .catch(error => {
+                alert("حدث خطأ أثناء فتح الكاميرا.");
+                console.error("Camera access error:", error);
+            });
+
+        // Save mode for later use
+        document.getElementById("cameraModal").dataset.mode = mode;
+    }
+
+    // Close Camera Modal
+    function closeCameraModal() {
+        if (cameraStream) {
+            const tracks = cameraStream.getTracks();
+            tracks.forEach(track => track.stop());
+            cameraStream = null;
+        }
+        const cameraModal = document.getElementById("cameraModal");
+        cameraModal.style.display = "none";
+    }
+
+    // Submit QR Code Manually
+    function submitQRCode() {
+        const qrData = document.getElementById("qrInput").value.trim();
+        const mode = document.getElementById("cameraModal").dataset.mode;
+
+        if (!qrData) {
+            alert("يرجى إدخال نتيجة QR Code.");
+            return;
+        }
+
+        if (mode === "checkIn") {
+            handleCheckIn(qrData);
+        } else if (mode === "checkOut") {
+            handleCheckOut(qrData);
+        }
+
+        closeCameraModal(); // Close camera modal after submission
+    }
+
+    // Handle Check In with Firebase
+    function handleCheckIn(qrData) {
+        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); // Show only time
+
+        const studentName = qrData;
+
+        if (!studentName) {
+            vibrateAndNotify("red", "QR Code غير صالح.");
+            return;
+        }
+
+        // Check if student is already checked in
+        database.ref("students/" + studentName).once("value").then(snapshot => {
+            if (snapshot.exists()) {
+                vibrateAndNotify("red", `الطالب "${studentName}" مسجل بالفعل.`);
+                return;
+            }
+
+            // Add student to Firebase
+            database.ref("students/" + studentName).set({
+                name: studentName,
+                checkIn: now,
+                checkOut: "",
+                returnTime: "" // Added returnTime field
+            }).then(() => {
+                vibrateAndNotify("green", `تم تسجيل دخول الطالب "${studentName}" بنجاح.`);
+            }).catch(error => {
+                console.error("Error adding student:", error);
+                vibrateAndNotify("red", "حدث خطأ أثناء تسجيل الدخول.");
+            });
+        }).catch(error => {
+            console.error("Error checking student:", error);
+            vibrateAndNotify("red", "حدث خطأ أثناء التحقق من الطالب.");
+        });
+    }
+
+    // Handle Check Out with Firebase
+    function handleCheckOut(qrData) {
+        const studentName = qrData;
+
+        if (!studentName) {
+            vibrateAndNotify("red", "QR Code غير صالح.");
+            return;
+        }
+
+        // Find student in Firebase
+        database.ref("students/" + studentName).once("value").then(snapshot => {
+            if (!snapshot.exists() || snapshot.val().checkOut !== "") {
+                vibrateAndNotify("red", `لم يتم العثور على الطالب "${studentName}" أو أنه سجل خروجه بالفعل.`);
+                return;
+            }
+
+            // Update checkOut status
+            database.ref("students/" + studentName).update({
+                checkOut: "<span class='check-out-icon'>✅</span>"
+            }).then(() => {
+                vibrateAndNotify("green", `تم تسجيل خروج الطالب "${studentName}" بنجاح.`);
+            }).catch(error => {
+                console.error("Error checking out student:", error);
+                vibrateAndNotify("red", "حدث خطأ أثناء تسجيل الخروج.");
+            });
+        }).catch(error => {
+            console.error("Error checking student:", error);
+            vibrateAndNotify("red", "حدث خطأ أثناء التحقق من الطالب.");
+        });
+    }
+
+    // Update table with students data
+    function updateTable() {
+        const tableBody = document.querySelector("#studentsTable tbody");
+        tableBody.innerHTML = "";
+        students.forEach(student => {
+            const row = document.createElement("tr");
+
+            // Add feedback colors
+            if (student.checkOut) {
+                row.classList.add("success"); // Green for success
+            } else if (student.checkIn && !student.checkOut) {
+                row.classList.add("neutral"); // Neutral for check-in
+            }
+
+            row.innerHTML = `
+                <td>${student.name}</td>
+                <td>${student.checkIn || "-"}</td>
+                <td>${student.checkOut || "-"}</td>
+                <td><input class="return-time" type="text" value="${student.returnTime}" onchange="updateReturnTime('${student.id}', this.value)" /></td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    // Update return time in Firebase
+    function updateReturnTime(studentId, value) {
+        if (value.length > 5) {
+            alert("يجب أن يكون وقت العودة على شكل 12:30 فقط.");
+            return;
+        }
+
+        database.ref("students/" + studentId).update({ returnTime: value });
+    }
+
+    // Clear list and save to history with Firebase
+    function clearList() {
+        if (students.length > 0) {
+            const currentDate = new Date().toLocaleDateString();
+            history.push({ date: currentDate, list: [...students] });
+
+            // Delete all students from Firebase
+            database.ref("students").remove();
+            students = [];
+            updateTable();
+        } else {
+            alert("لا توجد قائمة للمسح.");
+        }
+    }
+
+    // Open history modal with Firebase
+    function openHistory() {
+        const historyContentDiv = document.getElementById("historyContent");
+        historyContentDiv.innerHTML = "";
+
+        if (history.length === 0) {
+            historyContentDiv.innerHTML = "<p>لا يوجد تاريخ محفوظ.</p>";
+        } else {
+            history.forEach(day => {
+                const dayDiv = document.createElement("div");
+                dayDiv.style.marginBottom = "20px";
+                dayDiv.innerHTML = `
+                    <h3>التاريخ: ${day.date}</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>اسم الطالب</th>
+                                <th>وقت الدخول</th>
+                                <th>حالة الخروج</th>
+                                <th>العودة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${day.list.map(stud => `
+                                <tr>
+                                    <td>${stud.name}</td>
+                                    <td>${stud.checkIn || "-"}</td>
+                                    <td>${stud.checkOut || "-"}</td>
+                                    <td>${stud.returnTime || "-"}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                `;
+                historyContentDiv.appendChild(dayDiv);
+            });
+        }
+
+        document.getElementById("historyModal").style.display = "block";
+    }
+
+    // Close history modal
+    function closeHistory() {
+        document.getElementById("historyModal").style.display = "none";
+    }
+
+    // Vibrate and notify user
+    function vibrateAndNotify(color, message) {
+        const rows = document.querySelectorAll("#studentsTable tbody tr");
+        rows.forEach
