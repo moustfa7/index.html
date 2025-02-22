@@ -1,0 +1,88 @@
+<!DOCTYPE html><html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول والخروج</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        .container { margin-top: 20px; }
+        #reader { width: 300px; margin: auto; }
+        .success { background-color: green; color: white; padding: 10px; margin-top: 10px; }
+        .error { background-color: red; color: white; padding: 10px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>تسجيل الدخول والخروج</h1>
+        <button onclick="startScanner()">مسح QR Code</button>
+        <div id="reader"></div>
+        <div id="message"></div>
+        <table border="1" style="width:100%; margin-top: 20px;">
+            <thead>
+                <tr>
+                    <th>اسم الطالب</th>
+                    <th>وقت التسجيل</th>
+                </tr>
+            </thead>
+            <tbody id="studentList"></tbody>
+        </table>
+    </div><script>
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        databaseURL: "YOUR_DATABASE_URL",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    function startScanner() {
+        document.getElementById("message").innerHTML = "";
+        const html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 250 },
+            qrCodeMessage => {
+                html5QrCode.stop();
+                processQRCode(qrCodeMessage);
+            },
+            errorMessage => {}
+        ).catch(err => console.log(err));
+    }
+
+    function processQRCode(qrCodeMessage) {
+        const now = new Date().toLocaleString("ar-EG");
+        database.ref("students/" + qrCodeMessage).get().then(snapshot => {
+            if (snapshot.exists()) {
+                showMessage("الكود مسجل مسبقًا!", "error");
+            } else {
+                database.ref("students/" + qrCodeMessage).set({ name: qrCodeMessage, time: now });
+                addToTable(qrCodeMessage, now);
+                showMessage("تم التسجيل بنجاح!", "success");
+            }
+        });
+    }
+
+    function addToTable(name, time) {
+        const table = document.getElementById("studentList");
+        const row = table.insertRow(0);
+        row.insertCell(0).innerText = name;
+        row.insertCell(1).innerText = time;
+    }
+
+    function showMessage(msg, type) {
+        const div = document.getElementById("message");
+        div.innerHTML = `<div class='${type}'>${msg}</div>`;
+        setTimeout(() => div.innerHTML = "", 3000);
+    }
+</script>
+
+</body>
+</html>
