@@ -1,0 +1,19 @@
+<div id="reader" style="width: 300px;"></div>
+<button onclick="startQRScanner()">ابدأ المسح</button>
+
+<script>
+    function startQRScanner() {
+        let qrScanner = new Html5Qrcode("reader");
+        qrScanner.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            qrCodeMessage => {
+                alert("تم المسح: " + qrCodeMessage);
+                qrScanner.stop();
+            },
+            errorMessage => {
+                console.warn("خطأ في المسح:", errorMessage);
+            }
+        ).catch(err => console.error("خطأ في تشغيل الكاميرا:", err));
+    }
+</script>
