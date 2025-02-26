@@ -1,0 +1,35 @@
+<th>ط§ظ„ط¹ظˆط¯ط©</th> <!-- Changed from "ظ…ظ„ط§ط­ط¸ط§طھ" to "ط§ظ„ط¹ظˆط¯ط©" -->
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${day.list.map(stud => `
+                                <tr>
+                                    <td>${stud.name}</td>
+                                    <td>${stud.checkIn || "-"}</td>
+                                    <td>${stud.checkOut || "-"}</td>
+                                    <td>${stud.returnTime || "-"}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                `;
+                historyContentDiv.appendChild(dayDiv);
+            });
+        }
+
+        document.getElementById("historyModal").style.display = "block";
+    }
+
+    // Close history modal
+    function closeHistory() {
+        document.getElementById("historyModal").style.display = "none";
+    }
+
+    // Load students when page loads (if needed)
+    window.onload = () => {
+        updateTable(); // Ensure table is updated on page load
+    };
+</script>
+
+</body>
+</html>
